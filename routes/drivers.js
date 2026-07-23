@@ -22,7 +22,11 @@ const {
 } = require('../utils/validators');
 const router = express.Router();
 
-const upload = multer({ dest: 'uploads/' });
+// Memory storage, not disk — a disk-backed 'uploads/' dir needs a writable
+// filesystem, which serverless hosts (Vercel) don't have outside /tmp. Keeping
+// the file as an in-memory buffer works identically everywhere and needs no
+// special-casing, since cloudinary.uploadFile() streams the buffer directly.
+const upload = multer({ storage: multer.memoryStorage() });
 
 async function findOwnedDriver(id, userId) {
   return Driver.findOne({ where: { id, userId } });
