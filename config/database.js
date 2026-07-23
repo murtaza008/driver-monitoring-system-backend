@@ -1,4 +1,9 @@
 const { Sequelize } = require('sequelize');
+// Sequelize loads the pg driver dynamically (require(dialectName) with a variable),
+// not a literal require('pg') — so Vercel's static bundler can't see that dependency
+// and silently drops it from the deployed function, even though it's installed and
+// in package.json. This explicit, static require makes the bundler include it.
+require('pg');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required (Postgres connection string, e.g. from Neon)');
