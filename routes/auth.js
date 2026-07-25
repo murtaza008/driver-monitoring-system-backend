@@ -178,7 +178,12 @@ router.get('/firebase-token', auth, async (req, res) => {
 
     if (admin && admin.apps.length) {
       const customToken = await admin.auth().createCustomToken(String(userId), { role, ownerId });
-      res.json({ success: true, data: { firebaseToken: customToken } });
+      // Also returned in the plain response body (not just embedded in the token)
+      // so callers — the mobile app in particular — can stamp it directly onto
+      // their own Firestore writes (driver_locations needs it denormalized since
+      // its security rule can't look it up via the drivers/{id} doc for list
+      // queries the way the other collections do).
+      res.json({ success: true, data: { firebaseToken: customToken, ownerId } });
     } else {
       res.status(500).json({ success: false, message: 'Firebase Admin SDK not initialized.' });
     }
