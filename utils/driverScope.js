@@ -1,16 +1,17 @@
-const { Op } = require('sequelize');
 const Driver = require('../models/Driver');
-const { SYSTEM_USER_ID } = require('./settingsHelpers');
 const { ensureDailyResetMany } = require('./dailyScore');
 
 /**
- * The Sequelize where-clause fragment for "drivers this admin can see":
- * their own drivers, plus the shared demo tenant's drivers.
+ * The Sequelize where-clause fragment for "drivers this admin can see": their
+ * own drivers only. Used to include the shared demo tenant's drivers too (so a
+ * newly-registered admin had something to look at), but with multiple real
+ * companies now on the platform that meant every admin could see every other
+ * admin's drivers — dropped in favor of strict per-admin scoping.
  * Previously reimplemented independently in violations.js, drivers.js,
  * messages.js, and stats.js.
  */
 function viewScope(userId) {
-  return { [Op.or]: [{ userId }, { userId: SYSTEM_USER_ID }] };
+  return { userId };
 }
 
 async function getAllowedDrivers(userId) {

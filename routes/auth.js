@@ -153,14 +153,22 @@ router.get('/firebase-token', auth, async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // ownerId is the tenant/company identifier Firestore security rules scope
+    // reads by: for an admin it's their own id, for a driver it's the id of the
+    // admin who owns them. Without this, Firestore rules could only check "is
+    // this an admin at all", not "an admin of THIS driver's company" — which is
+    // how any admin ended up able to read every other company's driver data.
     let role = null;
+    let ownerId = null;
     const adminUser = await User.findByPk(userId);
     if (adminUser) {
       role = 'admin';
+      ownerId = adminUser.id;
     } else {
       const driverUser = await Driver.findByPk(userId);
       if (driverUser) {
         role = 'driver';
+        ownerId = driverUser.userId;
       }
     }
 
@@ -169,7 +177,7 @@ router.get('/firebase-token', auth, async (req, res) => {
     }
 
     if (admin && admin.apps.length) {
-      const customToken = await admin.auth().createCustomToken(String(userId), { role });
+      const customToken = await admin.auth().createCustomToken(String(userId), { role, ownerId });
       res.json({ success: true, data: { firebaseToken: customToken } });
     } else {
       res.status(500).json({ success: false, message: 'Firebase Admin SDK not initialized.' });
