@@ -63,7 +63,7 @@ router.get('/pending', auth, async (req, res) => {
 // Log a violation (from mobile app) — lands as Pending; no penalty/notification until an admin confirms it
 router.post('/', auth, async (req, res) => {
   try {
-    const { type, severity: appSeverity, imageUrl, idempotencyKey } = req.body;
+    const { type, severity: appSeverity, imageUrl, idempotencyKey, timestamp: appTimestamp } = req.body;
     // driverId comes from the authenticated JWT, never the request body — otherwise
     // any caller with a valid mobile session could submit fake violations for any
     // OTHER driver just by naming their id, regardless of who they actually are.
@@ -84,6 +84,13 @@ router.post('/', auth, async (req, res) => {
     // not a static per-type admin default.
     const finalSeverity = appSeverity || 'Medium';
 
+    // Prefer the app's own detection timestamp over "whenever this request happened
+    // to reach the server" — incidents queued offline (IncidentSyncWorker) can sync
+    // minutes or hours after they actually occurred, so falling back to the request's
+    // arrival time would show drivers/admins the wrong "when" for those.
+    const parsedTimestamp = appTimestamp ? new Date(appTimestamp) : null;
+    const finalTimestamp = parsedTimestamp && !isNaN(parsedTimestamp.getTime()) ? parsedTimestamp : undefined;
+
     const violation = await Violation.create({
       driverId,
       driverName: driver.name,
@@ -92,6 +99,7 @@ router.post('/', auth, async (req, res) => {
       imageUrl: imageUrl || null,
       idempotencyKey,
       status: 'Pending',
+      ...(finalTimestamp ? { timestamp: finalTimestamp } : {}),
     });
 
     const { syncToFirebase } = require('../services/firebase-sync');
@@ -183,15 +191,21 @@ router.put('/:id/confirm', auth, async (req, res) => {
       const displayType = normalizeViolationLabel(violation.type);
       const notifications = await settingsService.getNotifications(ownerId);
       const template = notifications?.templates?.[displayType];
+      const occurredAt = violation.timestamp.toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Karachi',
+      });
       const body = template
-        ? template.replace(/\{name\}/g, driver.name)
-        : `${driver.name} - Severity: ${violation.severity}`;
+        ? template.replace(/\{name\}/g, driver.name).replace(/\{time\}/g, occurredAt)
+        : `${driver.name} - Severity: ${violation.severity} - ${occurredAt}`;
 
       await notificationService.sendDriverMessage({
         driverId: violation.driverId,
         senderId: 'system',
         text: body,
         pushTitle: `CRITICAL ALERT: ${displayType}`,
+        timestamp: violation.timestamp,
       });
     }
 

@@ -8,7 +8,7 @@ const admin = require('./firebase');
  * should never fail the caller's primary action (confirming a violation,
  * sending a message).
  */
-async function sendDriverMessage({ driverId, senderId, senderName = 'Fleet Manager', text, pushTitle }) {
+async function sendDriverMessage({ driverId, senderId, senderName = 'Fleet Manager', text, pushTitle, timestamp }) {
   if (!admin || !admin.apps.length) return;
 
   try {
@@ -16,7 +16,11 @@ async function sendDriverMessage({ driverId, senderId, senderName = 'Fleet Manag
       senderId,
       senderName,
       text,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      // Automated violation alerts pass the violation's own occurrence time here so
+      // the driver sees when the behavior actually happened, not when the admin got
+      // around to confirming it. Manual chat (routes/messages.js) never passes this,
+      // so it correctly still falls back to "now".
+      timestamp: timestamp || admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (e) {
     console.error('Failed to write driver chat message:', e.message);

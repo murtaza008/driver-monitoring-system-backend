@@ -17,9 +17,15 @@ async function syncToFirebase(type, data) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
         } else if (type === 'violation') {
+            // Keep data.timestamp as-is — it's the violation's actual occurrence time
+            // (from Postgres, ultimately the app's own detection timestamp). This sync
+            // fires again later when an admin confirms/updates the violation, and
+            // previously stamped serverTimestamp() here on every call, which silently
+            // replaced the real "when it happened" with "whenever it was last synced" —
+            // e.g. showing a driver's confirmed violation as having happened at
+            // confirm-time instead of detection-time.
             await db.collection('incidents').doc(data.id).set({
                 ...data,
-                timestamp: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
         }
     } catch (err) {
