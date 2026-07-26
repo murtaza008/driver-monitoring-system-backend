@@ -18,6 +18,7 @@ const {
   parseFleetSize,
   assertGlobalEmailUnique,
   assertGlobalPhoneUnique,
+  getFleetUsage,
   handleRouteError,
 } = require('../utils/validators');
 const router = express.Router();
@@ -227,11 +228,21 @@ router.put('/profile', auth, async (req, res) => {
 
     const { companyName, adminName, phone, industry, fleetSize, address, ntnNumber } = req.body;
 
-    if (!parseFleetSize(fleetSize)) {
+    const parsedFleetSize = parseFleetSize(fleetSize);
+    if (!parsedFleetSize) {
       return res.status(400).json({
         success: false,
         message: 'Invalid fleet size.',
         errors: [{ field: 'fleetSize', message: 'Fleet size must be a number of at least 1.' }],
+      });
+    }
+
+    const { totalCount } = await getFleetUsage(user.id);
+    if (parsedFleetSize < totalCount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fleet size cannot be lower than your current driver count.',
+        errors: [{ field: 'fleetSize', message: `You currently have ${totalCount} driver(s). Fleet size cannot be less than that.` }],
       });
     }
 
